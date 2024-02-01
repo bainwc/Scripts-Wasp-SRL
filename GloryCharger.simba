@@ -1,0 +1,456 @@
+{$I SRL-T/osr.simba}
+{$I WaspLib/osr.simba}
+{$DEFINE SRL_USE_REMOTEINPUT}
+
+const       //build in failsafes for pool & out of glories
+
+  DEBUGMODE = False;
+//  TELEPORT_ANNAKARL = False;
+
+begin
+  Login.PlayerIndex := 0;
+end;
+
+type
+  EState = (
+    TELE_SWORD, CHARGE_GLORIES, WALK_SUB_30,
+    TELE_GLORY, OPEN_BANK, DO_BANKING, TELEPORT_HOME, REFUELLING,
+    END_SCRIPT, WAIT_STATE, OPEN_COLLECT, OUT_OF_SUPPLIES
+//    TELE_ANNAKARL, WALK_FOUNTAIN
+  );
+
+  THouseObj = (
+    JEWELLERY_BOX, ORNATE_POOL
+  );
+
+  TWildyObj = (
+    FOUNTAIN
+  );
+
+  TGloryCharger = record(TBaseBankScript)
+    State: EState;
+    Refueller, TeleBox: TRSObject;
+    Charger: TRSObject;
+    WORLD: Tbox;
+  end;
+
+  var
+  GloryCharger: TGloryCharger;
+  JewelleryBox: THouseObj := THouseObj.JEWELLERY_BOX;
+  OrnatePool: THouseObj := THouseObj.ORNATE_POOL;
+  Glory := TRSBankItem.Setup('Amulet of glory', 27, False);
+  FountainOfRune: TWildyObj := TWildyObj.FOUNTAIN;
+  Sword = 'Wilderness sword 4';
+
+procedure TAntiban.Setup(); override;
+begin
+  Self.Skills := [ERSSkill.TOTAL];
+  Self.MinZoom := 5;
+  Self.MaxZoom := 10;
+  Self.AddBreak(135 * ONE_MINUTE, 15 * ONE_MINUTE);
+end;
+
+function TRSOptions.HideRoofs(): Boolean; override;
+begin
+  Result := True;
+end;
+
+procedure TGloryCharger.WriteMsg(Message: String);
+begin
+  WriteLn('[Bot]: ' +Message);
+end;
+
+procedure TGloryCharger.SetState(State: EState);
+begin
+  if Self.State <> State then
+    if DEBUGMODE then
+    Self.WriteMsg('State changed to ' + toStr(State));
+  Self.State := State;
+end;
+
+procedure TGloryCharger.SetupObjects();
+begin
+  case JewelleryBox of
+  THouseObj.JEWELLERY_BOX:
+    begin
+      Self.TeleBox.Finder.Colors += CTS2(1056115, 1, 0.46, 0.38);
+      Self.TeleBox.SetupUpText(['Jewellery']);
+    end;
+  end;
+
+  case OrnatePool of
+  THouseObj.ORNATE_POOL:
+    begin
+      Self.Refueller.Finder.Colors += CTS2(2603998, 1, 0.01, 0.01);
+      Self.Refueller.Finder.Colors += CTS2(5326691, 1, 0.01, 0.01);
+      Self.Refueller.SetupUpText(['Ornate']);
+    end;
+  end;
+
+  case FountainOfRune of
+  TWildyObj.FOUNTAIN:
+    begin
+    Self.Charger.Finder.Colors += CTS2(6318965, 1, 0.01, 0.01);
+    Self.Charger.Finder.Colors += CTS2(1645084, 1, 0.01, 0.01);
+    Self.Charger.SetupUpText(['Fountain of Rune']);
+    end;
+  end;
+end;
+
+procedure TGloryCharger.TeleportHome();
+begin
+
+  if DEBUGMODE then
+    Self.WriteMsg('Teleporting home');
+
+    begin
+      Wait(500,800);
+      GameTabs.Open(ERSGameTab.Inventory);
+      Wait(1000,1200);
+      Inventory.ClickItem('Teleport to house', 'Break');
+      Mainscreen.WaitLoadingPOH(1000);
+    end;
+  Self.SetState(EState.REFUELLING);
+end;
+
+procedure TGloryCharger.Refuel();
+begin
+
+  if DEBUGMODE then
+    Self.WriteMsg('Refuelling');
+
+  Mainscreen.WaitLoadingPOH(1800);
+    begin
+      Refueller.Click(True,10);
+      Minimap.Waitmoving();
+      Wait(random(800,1200));
+    end;
+
+  Self.SetState(EState.TELE_SWORD);
+end;
+
+function TGloryCharger.OpenBank(): Boolean;
+begin
+  Wait(2000,2200);
+
+  if DEBUGMODE then
+  begin
+    Self.WriteMsg('Banking');
+  end;
+
+  Self.RSW.ScreenWalk := True;
+  begin
+    begin
+      if Bank.IsOpen() then
+        Exit(True);
+      MainScreen.CloseInterface();
+    end;
+
+    if Bank.WalkOpen() then
+    begin
+     Minimap.WaitMoving();
+     WaitUntil(Bank.IsOpen(), RandomLeft(50, 1500), 3000);
+    end;
+
+    if not Bank.IsOpen(2000,300) then    //its not opening every time
+    begin                              //quick fail safe?
+    Bank.WalkOpen();
+    end;
+
+  end;
+
+  Self.SetState(EState.DO_BANKING);
+end;
+
+procedure TGloryCharger.DoBanking();
+begin
+  if MainScreen.HasInterface() then
+  begin
+    if not Self.BankEmpty and Bank.IsOpen() then
+    begin
+        Self.DepositItems(['Amulet of glory(6)', 'Amulet of eternal glory']);
+        Wait(800,2000);
+        Self.Withdraw(Glory);
+    end;
+  end;
+
+  if MainScreen.HasInterface() then
+    begin
+    Mainscreen.CloseInterface(True);
+    end;
+  Self.SetState(EState.TELEPORT_HOME);
+end;
+
+procedure TGloryCharger.TeleSword();
+begin
+
+  if DEBUGMODE then
+    Self.WriteMsg('Teleporting to wildy');
+
+  RSW.GetMyPos();
+  GameTabs.Open(ERSGameTab.Equipment);
+  if Charger.IsVisible() then Self.SetState(EState.CHARGE_GLORIES);
+  repeat
+    Equipment.ClickItem(Sword, 'Teleport');
+    Wait(1200, 2000);
+  until Chat.ClickOption('Yes.');
+Self.SetState(EState.CHARGE_GLORIES);
+end;
+
+
+procedure TGloryCharger.ChargeGlories();
+begin
+
+  if DEBUGMODE then
+    Self.WriteMsg('Charging glories');
+
+  RSW.GetMyPos();
+  GameTabs.Open(ERSGameTab.INVENTORY);
+    begin
+      Inventory.ClickSlot(random(1,10), 'Use');
+      Wait(800,2000);
+      Charger.Click(True);
+      WaitUntil(Chat.ClickContinue, 150, 7000);
+    end;
+  Self.SetState(EState.WALK_SUB_30);
+end;
+
+procedure TGloryCharger.WalkTo30();
+begin
+
+  if DEBUGMODE then
+    WriteMsg('Walking to level 30');
+
+  begin
+    Self.RSW.ScreenWalk := False;
+    Self.RSW.CheckRunEnergy(); //in case it missed pool earlier and runs out of run
+    RSW.WebWalk([[8752,1461]], 15, 0.1);
+  end;
+
+  if Chat.findMessage('this teleport after') then
+  begin
+  RSW.WalkBlind([8700,1459], 10);
+  end;
+
+  Self.SetState(EState.TELE_GLORY);
+end;
+
+procedure TGloryCharger.TeleGlory();
+begin
+
+  if DEBUGMODE then
+    Self.WriteMsg('Teleporting to Edge');
+
+  GameTabs.Open(ERSGameTab.Equipment);
+    begin
+      Equipment.clickItem('Amulet of glory(6)', 'Edge');
+      Wait(1500,2000);
+    end;
+  Self.SetState(OPEN_BANK);
+end;
+
+procedure TGloryCharger.Init(maxActions: UInt32; maxTime: UInt64); override;
+begin
+inherited;
+  if (not RSClient.IsLoggedIn) then
+      Login.LoginPlayer;
+  begin
+
+    if(Options.GetZoomLevel() > 10) then
+      Options.SetZoomLevel(random(5,10));
+
+    MM2MS.ZoomLevel := Options.GetZoomLevel();
+    RSW.SetupRegions([RSRegions.EDGEVILLE, RSRegions.FOUNTAIN_OF_RUNE]);
+    Self.SetupObjects();
+    Self.RSW.ScreenWalk := False;
+  end;
+  Mouse.Speed             := SRL.NormalRange(15,22);
+  Mouse.MissChance        := 10;
+  Mouse.Distribution      := MOUSE_DISTRIBUTION_GAUSS;
+  Mouse.Gravity           := 15;
+  Mouse.Wind              := 12;
+end;
+
+procedure TGloryCharger.Run(maxActions: UInt32; maxTime: UInt64);
+begin
+  Self.Init(maxActions, maxTime);
+
+  repeat
+    Self.SetAction(ToStr(Self.State));
+
+    case Self.State of
+//        TELE_ANNAKARL:  Self.TeleAnnakarl();
+//        WALK_FOUNTAIN:  Self.WalkFountain();
+        TELE_SWORD:     Self.TeleSword();
+        CHARGE_GLORIES: Self.ChargeGlories();
+        WALK_SUB_30:    Self.WalkTo30();
+        TELE_GLORY:     Self.TeleGlory();
+        OPEN_BANK:      Self.OpenBank();
+        DO_BANKING:     Self.DoBanking;
+        TELEPORT_HOME:  Self.TeleportHome();
+        REFUELLING:     Self.Refuel();
+    end;
+
+  if SRL.Dice(20) then Self.DoAntiban();
+  RSW.GetMyPos();
+  until false;
+  TerminateScript('Over');
+end;
+
+// Changes by Flight to Torwent's functions to use an inventory item on
+// TRSObject properly (from discord)
+
+function TRSChooseOption.Select(Text: TStringArray; MouseAction: Int32 = MOUSE_LEFT; CaseSensitive: Boolean = True; CloseIfNotFound: Boolean = True): Boolean; override;
+var
+  Choices: TRSChooseOption_OptionArray;
+  I, J: Int32;
+begin
+  if Self.Open() then
+  begin
+    Wait(0, 750, wdLeft);
+
+    Choices := GetOptions();
+
+    for I := 0 to High(Choices) do
+      for J := 0 to High(Text) do
+        if (CaseSensitive and (Text[J] in Choices[I].Text)) or ((not CaseSensitive) and (Lowercase(Text[J]) in Lowercase(Choices[I].Text))) then
+        begin
+          Self.Select(Choices[I], MouseAction);
+          Exit(True);
+        end;
+
+    if CloseIfNotFound then
+    begin
+      WaitEx(400, 150);
+
+      Self.Close();
+    end;
+  end;
+end;
+
+procedure TRSObject.SetObject(objUpText: TStringArray; coordinates: TPointArray; size, height: double);
+begin
+  Self := [];
+  Self.Setup(size, height, coordinates);
+  Self.Setup(objUpText);
+
+  Filter := [True, False, True, True];
+end;
+
+function TRSWalker.Click(MinimapPoint: TPoint; Randomness: Int32): Boolean; override;
+var
+  p: TPoint;
+  line: TPointArray;
+  i, j: Int32;
+  hoveringTarget: Boolean;
+  msUpText, str: String;
+begin
+  Result := True;
+
+  if Self.ScreenWalk then
+  begin
+    repeat
+      i += 1;
+      p := MinimapPoint.Random(-randomness, randomness);
+      if i >= 15 then
+      begin
+        line := TPointArray.CreateFromLine(p, Minimap.Center());
+        for j := 0 to High(line) do
+          if Minimap.PointInZoomRectangle(line[j]) then
+          begin
+            p := line[j];
+            Break;
+          end;
+      end;
+    until Minimap.PointInZoomRectangle(p);
+
+    Mouse.Move(Minimap.PointToMsRect(p).Mean());
+    msUpText := MainScreen.GetUpText();
+
+    for str in TRSWalkerObject.CurrentUpText do
+      if str in msUpText then
+      begin
+        hoveringTarget := True;
+        Break;
+      end;
+
+    if not hoveringTarget and not ('Walk here' in msUpText) then
+      Exit(ChooseOption.Select('Walk here'));
+  end else
+  begin
+    repeat
+      P := MinimapPoint.Random(-Randomness, Randomness);
+    until Minimap.IsPointOn(P);
+
+    Mouse.Move(P);
+  end;
+
+  Mouse.Click(MOUSE_LEFT);
+  TRSWalkerObject.RedClicked := Self.ScreenWalk and hoveringTarget and MainScreen.DidRedClick();
+
+  if TRSWalkerObject.RedClicked then
+    Self.Enabled := False;
+
+  Result := TRSWalkerObject.RedClicked;
+end;
+
+function TRSWalkerObject._UpTextCheck(out shouldExit: Boolean): Boolean; override;
+var
+  strArray: TStringArray;
+  upText: String;
+begin
+  shouldExit := True;
+
+  if (MainScreen.Mode = ERSClientMode.FIXED) and MainScreen.HasInterface() then
+    Exit;
+
+  if Self.Filter.UpText then
+  begin
+    strArray := Self.UpText;
+    if Self.ActionUpText <> [] then
+      strArray := Self.ActionUpText;
+
+    if TRSWalkerObject.CurrentUpText <> strArray then
+      TRSWalkerObject.CurrentUpText := strArray;
+  end;
+
+  upText := MainScreen.GetUpText();
+
+  if Self.Filter.UpText and (Self.UpText in upText) then
+    Exit(True);
+
+  shouldExit := False;
+end;
+
+function TRSWalkerObject._WalkUpTextCheck(out shouldExit: Boolean): Boolean; override;
+var
+  upText: String;
+  strArray: TStringArray;
+begin
+  shouldExit := True;
+
+  if (MainScreen.Mode = ERSClientMode.FIXED) and MainScreen.HasInterface() then
+    Exit;
+
+
+  if Self.Filter.UpText then
+  begin
+    strArray := Self.UpText;
+    if Self.ActionUpText <> [] then
+      strArray := Self.ActionUpText;
+
+    if TRSWalkerObject.CurrentUpText <> strArray then
+      TRSWalkerObject.CurrentUpText := strArray;
+  end;
+
+  upText := MainScreen.GetUpText();
+
+  if TRSWalkerObject.RedClicked or (Self.Filter.UpText and (Self.UpText in upText)) then
+    Exit(True);
+
+  shouldExit := False;
+end;
+
+begin
+  GloryCharger.Run(WLSettings.MaxActions, WLSettings.MaxTime);
+end.
