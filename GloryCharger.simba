@@ -346,7 +346,7 @@ procedure TRSObject.SetObject(objUpText: TStringArray; coordinates: TPointArray;
 begin
   Self := [];
   Self.Setup(size, height, coordinates);
-  Self.Setup(objUpText);
+  Self.SetupUpText(objUpText);
 
   Filter := [True, False, True, True];
 end;
