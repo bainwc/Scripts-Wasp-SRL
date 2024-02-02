@@ -2,6 +2,8 @@
 
 Glory Charger:
 
+Primarily for collection logging the eternal glory.
+
 Currently only supports Wildy Sword 4 and an ornate pool in house, near portal. Will run until out of glories or out of house tabs.  
 More options for teles coming.
 
