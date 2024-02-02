@@ -11,5 +11,5 @@ Wider support coming, was just excited to have a first functional script and wan
 4. Have uncharged glories filling remaining inventory. 
 5. Have uncharged glories and house tabs visible at the top of the bank.
 
-6. To do:
-7. Add annakarl tele support, add obelisk support.
+To do:
+Add annakarl tele support, add obelisk support.
