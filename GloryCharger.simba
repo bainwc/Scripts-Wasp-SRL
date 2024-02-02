@@ -2,10 +2,8 @@
 {$I WaspLib/osr.simba}
 {$DEFINE SRL_USE_REMOTEINPUT}
 
-const       //build in failsafes for pool & out of glories
-
+const
   DEBUGMODE = False;
-//  TELEPORT_ANNAKARL = False;
 
 begin
   Login.PlayerIndex := 0;
@@ -31,16 +29,16 @@ type
     State: EState;
     Refueller, TeleBox: TRSObject;
     Charger: TRSObject;
-    WORLD: Tbox;
   end;
 
   var
   GloryCharger: TGloryCharger;
   JewelleryBox: THouseObj := THouseObj.JEWELLERY_BOX;
   OrnatePool: THouseObj := THouseObj.ORNATE_POOL;
-  Glory := TRSBankItem.Setup('Amulet of glory', 27, False);
   FountainOfRune: TWildyObj := TWildyObj.FOUNTAIN;
   Sword = 'Wilderness sword 4';
+  Glory := TRSBankItem.Setup('Amulet of glory', 27, False);
+  HouseTabs := TRSBankItem.Setup('Teleport to house', 27, False);
 
 procedure TAntiban.Setup(); override;
 begin
@@ -48,6 +46,7 @@ begin
   Self.MinZoom := 5;
   Self.MaxZoom := 10;
   Self.AddBreak(135 * ONE_MINUTE, 15 * ONE_MINUTE);
+  Self.AddSleep('23:30:00',7 * ONE_HOUR, 0.2, 0.8);
 end;
 
 function TRSOptions.HideRoofs(): Boolean; override;
@@ -70,6 +69,7 @@ end;
 
 procedure TGloryCharger.SetupObjects();
 begin
+//For jewellery box setup in future, not used currently
   case JewelleryBox of
   THouseObj.JEWELLERY_BOX:
     begin
@@ -83,6 +83,9 @@ begin
     begin
       Self.Refueller.Finder.Colors += CTS2(2603998, 1, 0.01, 0.01);
       Self.Refueller.Finder.Colors += CTS2(5326691, 1, 0.01, 0.01);
+      Self.Refueller.Finder.Colors += CTS2(11382200, 1, 0.01, 0.01);
+      Self.Refueller.Finder.Colors += CTS2(6840693, 1, 0.01, 0.01);
+      Self.Refueller.Finder.Colors += CTS2(7432320, 1, 0.01, 0.01);
       Self.Refueller.SetupUpText(['Ornate']);
     end;
   end;
@@ -151,12 +154,6 @@ begin
      Minimap.WaitMoving();
      WaitUntil(Bank.IsOpen(), RandomLeft(50, 1500), 3000);
     end;
-
-    if not Bank.IsOpen(2000,300) then    //its not opening every time
-    begin                              //quick fail safe?
-    Bank.WalkOpen();
-    end;
-
   end;
 
   Self.SetState(EState.DO_BANKING);
@@ -171,6 +168,19 @@ begin
         Self.DepositItems(['Amulet of glory(6)', 'Amulet of eternal glory']);
         Wait(800,2000);
         Self.Withdraw(Glory);
+
+  //will end if out of uncharged glories and withdraws other glories
+          if Inventory.ContainsAny(['Amulet of glory(6)', 'Amulet of glory(5)', 'Amulet of glory(4)',
+          'Amulet of glory(3)', 'Amulet of glory(2)', 'Amulet of glory(1)']) then
+          TerminateScript('Out of glories');
+
+          if Inventory.CountItemStack('Teleport to house') < random(1,4) then
+          begin
+          Wait(500,1000);
+          Self.Withdraw(HouseTabs);
+            if DEBUGMODE then
+            WriteMsg('Withdrawing more tabs');
+          end;
     end;
   end;
 
@@ -207,7 +217,7 @@ begin
   RSW.GetMyPos();
   GameTabs.Open(ERSGameTab.INVENTORY);
     begin
-      Inventory.ClickSlot(random(1,10), 'Use');
+      Inventory.ClickSlot(random(0,10), 'Use');
       Wait(800,2000);
       Charger.Click(True);
       WaitUntil(Chat.ClickContinue, 150, 7000);
@@ -216,6 +226,8 @@ begin
 end;
 
 procedure TGloryCharger.WalkTo30();
+var
+  chatResult: string;
 begin
 
   if DEBUGMODE then
@@ -224,10 +236,11 @@ begin
   begin
     Self.RSW.ScreenWalk := False;
     Self.RSW.CheckRunEnergy(); //in case it missed pool earlier and runs out of run
-    RSW.WebWalk([[8752,1461]], 15, 0.1);
+    RSW.WebWalk([8772,1468], 5, 0.1);
   end;
 
-  if Chat.findMessage('this teleport after') then
+  chatResult := Chat.GetChat();
+  if Chat.FindMessage('use this teleport') then
   begin
   RSW.WalkBlind([8700,1459], 10);
   end;
@@ -293,6 +306,7 @@ begin
 
   if SRL.Dice(20) then Self.DoAntiban();
   RSW.GetMyPos();
+
   until false;
   TerminateScript('Over');
 end;
