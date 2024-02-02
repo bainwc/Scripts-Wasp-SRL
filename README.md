@@ -16,3 +16,4 @@ Teleports to rune fountain with wildy sword. Charges glories. Runs level 29-30 a
 To do:
 Add annakarl tele support, add obelisk support.
 Add wider pool support.
+Add tracker for charged glories.
