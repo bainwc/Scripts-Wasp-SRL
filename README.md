@@ -3,7 +3,9 @@
 Glory Charger:
 
 Currently only supports Wildy Sword 4 and an ornate pool in house, near portal. Will run until out of glories or out of house tabs.  
-Wider support coming, was just excited to have a first functional script and wanted to share :D
+More options for teles coming.
+
+Teleports to rune fountain with wildy sword. Charges glories. Runs level 29-30 and uses the equipped glory to tele edge. Banks. Tabs home to use ornate pool and repeats. 
 
 1. Have Wildy Sword 4 and a glory equipped.
 2. Have ornate pool next to portal. 
@@ -13,3 +15,4 @@ Wider support coming, was just excited to have a first functional script and wan
 
 To do:
 Add annakarl tele support, add obelisk support.
+Add wider pool support.
