@@ -226,8 +226,6 @@ begin
 end;
 
 procedure TGloryCharger.WalkTo30();
-var
-  chatResult: string;
 begin
 
   if DEBUGMODE then
@@ -239,8 +237,8 @@ begin
     RSW.WebWalk([8772,1468], 5, 0.1);
   end;
 
-  chatResult := Chat.GetChat();
-  if Chat.FindMessage('use this teleport') then
+  Chat.GetChat();
+  if Chat.FindMessage('use this teleport') then  
   begin
   RSW.WalkBlind([8700,1459], 10);
   end;
